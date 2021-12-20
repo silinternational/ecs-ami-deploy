@@ -66,3 +66,14 @@ available or not. When `--force-replacement` is enabled the process is _not_ ide
  - [ ] Consistentify logging vs. returning errors
  - [ ] Add a logger that can send output to an email as well as stdout
  - [ ] Create Lambda wrapper and provide trigger examples for schedule and SNS when newer AMI is released
+
+## CLI Usage
+1. Grab the latest binary for your platform at https://github.com/silinternational/ecs-ami-deploy/releases
+2. The CLI makes use of AWS's SDK for Go, which can load authentication credentials from various places similar to the 
+   AWS CLI itself
+3. Run `ecs-ami-deploy list-cluster` to check if it's working and what clusters you have available.
+4. If you have multiple profiles configured in your `~/.aws/credentials` file, you can use the `-p` or `--profile` 
+   flags to specify a different profile.
+5. The CLI defaults to region `us-east-1`, you can use the `-r` or `-region` flags to specify else
+6. The CLI has help information built in for the various subcommands and their supported flags, use `-h` or `--help` 
+   flags with each subcommand for more information.
