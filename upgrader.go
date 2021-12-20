@@ -160,7 +160,16 @@ func (u *Upgrader) ListClusters() ([]ClusterMeta, error) {
 		for _, c := range results.Clusters {
 			asg, err := u.getAsgNameForCluster(*c.ClusterName)
 			if err != nil {
-				return []ClusterMeta{}, err
+				// if error, include in list but don't attempt to fetch more information
+				allClusters = append(allClusters, ClusterMeta{
+					Cluster: c,
+					Image: ec2types.Image{
+						CreationDate: aws.String("na"),
+						ImageId:      aws.String("na"),
+						Name:         aws.String(fmt.Sprintf("%s", err.Error())),
+					},
+				})
+				continue
 			}
 
 			lc, err := u.getLaunchConfigurationForASG(asg)
@@ -313,7 +322,7 @@ func (u *Upgrader) getAsgNameForCluster(cluster string) (string, error) {
 	}
 
 	if len(instanceIDs) == 0 {
-		return "", fmt.Errorf("no instances found for cluster %s\n", u.cluster)
+		return "", fmt.Errorf("no instances found for cluster %s", cluster)
 	}
 
 	instanceDetails, err := u.ec2Client.DescribeInstances(context.Background(), &ec2.DescribeInstancesInput{
@@ -360,6 +369,11 @@ func (u *Upgrader) getInstanceListForCluster(cluster string) ([]ecsTypes.Contain
 	})
 	if err != nil {
 		return []ecsTypes.ContainerInstance{}, fmt.Errorf("failed to list container instances: %s", err)
+	}
+
+	// if there are no instances in this cluster, return
+	if len(listResult.ContainerInstanceArns) == 0 {
+		return nil, nil
 	}
 
 	descResult, err := u.ecsClient.DescribeContainerInstances(context.Background(), &ecs.DescribeContainerInstancesInput{
