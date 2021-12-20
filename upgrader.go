@@ -160,7 +160,16 @@ func (u *Upgrader) ListClusters() ([]ClusterMeta, error) {
 		for _, c := range results.Clusters {
 			asg, err := u.getAsgNameForCluster(*c.ClusterName)
 			if err != nil {
-				return []ClusterMeta{}, err
+				// if error, include in list but don't attempt to fetch more information
+				allClusters = append(allClusters, ClusterMeta{
+					Cluster: c,
+					Image: ec2types.Image{
+						CreationDate: aws.String("na"),
+						ImageId:      aws.String("na"),
+						Name:         aws.String(fmt.Sprintf("%s", err.Error())),
+					},
+				})
+				continue
 			}
 
 			lc, err := u.getLaunchConfigurationForASG(asg)
@@ -313,7 +322,7 @@ func (u *Upgrader) getAsgNameForCluster(cluster string) (string, error) {
 	}
 
 	if len(instanceIDs) == 0 {
-		return "", fmt.Errorf("no instances found for cluster %s\n", u.cluster)
+		return "", fmt.Errorf("no instances found for cluster %s", cluster)
 	}
 
 	instanceDetails, err := u.ec2Client.DescribeInstances(context.Background(), &ec2.DescribeInstancesInput{
@@ -360,6 +369,11 @@ func (u *Upgrader) getInstanceListForCluster(cluster string) ([]ecsTypes.Contain
 	})
 	if err != nil {
 		return []ecsTypes.ContainerInstance{}, fmt.Errorf("failed to list container instances: %s", err)
+	}
+
+	// if there are no instances in this cluster, return
+	if len(listResult.ContainerInstanceArns) == 0 {
+		return nil, nil
 	}
 
 	descResult, err := u.ecsClient.DescribeContainerInstances(context.Background(), &ecs.DescribeContainerInstancesInput{
@@ -469,6 +483,11 @@ func (u *Upgrader) cloneLaunchConfigurationWithNewImage(lc *asgTypes.LaunchConfi
 	// need to nil out snapshot ids of block devices so they don't reference old AMI
 	for _, b := range newLc.BlockDeviceMappings {
 		b.Ebs.SnapshotId = nil
+	}
+
+	// If newLc has an SSH key name and it's empty, change to nil as empty is not valid
+	if newLc.KeyName != nil && *newLc.KeyName == "" {
+		newLc.KeyName = nil
 	}
 
 	_, err := u.asgClient.CreateLaunchConfiguration(context.Background(), &newLc)
@@ -881,7 +900,7 @@ func (u *Upgrader) terminateOrphanedInstances(asgName string) error {
 // ecs-ami-deploy to pick up where it left off due to premature exit (or timeout)
 func (u *Upgrader) findDetachedButRunningInstances(asgName string) ([]string, error) {
 	ec2Paginator := ec2.NewDescribeInstancesPaginator(u.ec2Client, &ec2.DescribeInstancesInput{
-		MaxResults: 100,
+		MaxResults: aws.Int32(100),
 		Filters: []ec2types.Filter{
 			{
 				Name:   aws.String("tag:" + TagNameASG),

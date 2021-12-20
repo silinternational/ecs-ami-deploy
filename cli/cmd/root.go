@@ -104,6 +104,6 @@ func initAwsCfg() {
 	var err error
 	AwsCfg, err = config.LoadDefaultConfig(context.TODO(), cfgOpts...)
 	if err != nil {
-		log.Printf("failed to load config with profile %s")
+		log.Printf("failed to load config with profile %s", Profile)
 	}
 }
