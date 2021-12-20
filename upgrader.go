@@ -485,6 +485,11 @@ func (u *Upgrader) cloneLaunchConfigurationWithNewImage(lc *asgTypes.LaunchConfi
 		b.Ebs.SnapshotId = nil
 	}
 
+	// If newLc has an SSH key name and it's empty, change to nil as empty is not valid
+	if newLc.KeyName != nil && *newLc.KeyName == "" {
+		newLc.KeyName = nil
+	}
+
 	_, err := u.asgClient.CreateLaunchConfiguration(context.Background(), &newLc)
 	if err != nil {
 		return "", fmt.Errorf("failed to clone launch configuration, error: %s", err)
@@ -895,7 +900,7 @@ func (u *Upgrader) terminateOrphanedInstances(asgName string) error {
 // ecs-ami-deploy to pick up where it left off due to premature exit (or timeout)
 func (u *Upgrader) findDetachedButRunningInstances(asgName string) ([]string, error) {
 	ec2Paginator := ec2.NewDescribeInstancesPaginator(u.ec2Client, &ec2.DescribeInstancesInput{
-		MaxResults: 100,
+		MaxResults: aws.Int32(100),
 		Filters: []ec2types.Filter{
 			{
 				Name:   aws.String("tag:" + TagNameASG),
