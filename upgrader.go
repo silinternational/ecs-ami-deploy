@@ -203,13 +203,13 @@ func (u *Upgrader) UpgradeCluster() error {
 	startTime := time.Now()
 	u.logger.Printf("Beginning upgrade for ECS cluster %s using AMI filter %s\n", u.cluster, u.amiFilter)
 
-	asg, err := u.getAsgNameForCluster(u.cluster)
+	asgName, err := u.getAsgNameForCluster(u.cluster)
 	if err != nil {
 		return err
 	}
-	u.logger.Printf("Found ASG: %s\n", asg)
+	u.logger.Printf("Found ASG: %s\n", asgName)
 
-	lc, err := u.getLaunchConfigurationForASG(asg)
+	lc, err := u.getLaunchConfigurationForASG(asgName)
 	if err != nil {
 		return err
 	}
@@ -234,13 +234,18 @@ func (u *Upgrader) UpgradeCluster() error {
 
 	if !isNewer && !u.forceReplacement {
 		u.logger.Println("Upgrade not needed, cluster is already running latest AMI")
-		return u.terminateOrphanedInstances(asg)
+		return u.terminateOrphanedInstances(asgName)
 	}
 
 	if u.forceReplacement {
 		u.logger.Println("Cluster already running latest AMI, but replacing instances anyway")
 	} else {
 		u.logger.Println("Latest image determined to be newer than image currently in use, proceeding with upgrade")
+	}
+
+	asg, err := u.getAsgByName(asgName)
+	if err != nil {
+		return fmt.Errorf("failed to get ASG by name: %s", err)
 	}
 
 	// get cluster list before new instances are added
@@ -263,18 +268,18 @@ func (u *Upgrader) UpgradeCluster() error {
 	}
 	u.logger.Printf("New launch configuration created: %s\n", newLc)
 
-	if err := u.updateAsgLaunchConfiguration(asg, newLc); err != nil {
+	if err := u.updateAsgLaunchConfiguration(asgName, newLc); err != nil {
 		return err
 	}
 	u.logger.Println("ASG updated to use new launch configuration")
 
 	// detach and replace instances
-	if err := u.detachAndReplaceAsgInstances(asg); err != nil {
+	if err := u.detachAndReplaceAsgInstances(asgName); err != nil {
 		return err
 	}
 
 	// watch ECS cluster for new EC2 instances to be registered
-	if err := u.waitForContainerInstanceCount(u.cluster, len(originalClusterInstances)*2); err != nil {
+	if err := u.waitForContainerInstanceCount(u.cluster, int(*asg.DesiredCapacity)); err != nil {
 		return err
 	}
 
@@ -302,7 +307,7 @@ func (u *Upgrader) UpgradeCluster() error {
 		}
 	}
 
-	if err := u.terminateOrphanedInstances(asg); err != nil {
+	if err := u.terminateOrphanedInstances(asgName); err != nil {
 		return err
 	}
 
