@@ -279,7 +279,7 @@ func (u *Upgrader) UpgradeCluster() error {
 	}
 
 	// watch ECS cluster for new EC2 instances to be registered
-	if err := u.waitForContainerInstanceCount(u.cluster, int(*asg.DesiredCapacity)); err != nil {
+	if err := u.waitForContainerInstanceCount(u.cluster, int(*asg.DesiredCapacity)*2); err != nil {
 		return err
 	}
 
