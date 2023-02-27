@@ -18,7 +18,7 @@ var aboutCmd = &cobra.Command{
 		_, _ = fmt.Fprintf(w, "Version:\t %s\n", Version)
 		_, _ = fmt.Fprintf(w, "Commit:\t %s\n", Commit)
 		_, _ = fmt.Fprintf(w, "Build Date:\t %s\n", Date)
-		_, _ = fmt.Fprintf(w, "Built By:\t %s\n", Date)
+		_, _ = fmt.Fprintf(w, "Built By:\t %s\n", BuiltBy)
 
 		_ = w.Flush()
 		fmt.Println("")
