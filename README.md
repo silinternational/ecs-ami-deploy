@@ -44,11 +44,11 @@ available or not. When `--force-replacement` is enabled the process is _not_ ide
 ## Instance Replacement Process
 
  1. Look up latest AMI based on either the given AMI filter, or the default: `amzn2-ami-ecs-hvm-*-x86_64-ebs`
- 2. Identify the ASG for the given ECS cluster to get current launch configuration and instances list
- 3. Compare latest AMI with AMI in use by launch configuration
+ 2. Identify the ASG for the given ECS cluster to get current launch template and instances list
+ 3. Compare latest AMI with AMI in use by launch template
     1. If cluster is not using latest AMI, or `force replacement` is enabled, proceed to #4
     2. Else if using latest AMI already, jump to #10
- 4. Create new launch configuration with new AMI
+ 4. Create new launch template version with new AMI
  5. Update ASG to use new launch config
  6. Detach existing instances from ASG and replace with new ones
  7. Wait for new instances to reach `InService` state with ASG
@@ -71,7 +71,7 @@ available or not. When `--force-replacement` is enabled the process is _not_ ide
 1. Grab the latest binary for your platform at https://github.com/silinternational/ecs-ami-deploy/releases
 2. The CLI makes use of AWS's SDK for Go, which can load authentication credentials from various places similar to the 
    AWS CLI itself
-3. Run `ecs-ami-deploy list-cluster` to check if it's working and what clusters you have available.
+3. Run `ecs-ami-deploy list-clusters` to check if it's working and what clusters you have available.
 4. If you have multiple profiles configured in your `~/.aws/credentials` file, you can use the `-p` or `--profile` 
    flags to specify a different profile.
 5. The CLI defaults to region `us-east-1`, you can use the `-r` or `-region` flags to specify else
