@@ -491,6 +491,10 @@ func (u *Upgrader) newLaunchTemplateVersionWithNewImage(lt *ec2types.LaunchTempl
 
 	newLtd.ImageId = image.ImageId
 
+	// KernelId and RamdiskId must be updated anytime a the ImageId is updated
+	newLtd.KernelId = image.KernelId
+	newLtd.RamDiskId = image.RamdiskId
+
 	// need to nil out snapshot ids of block devices so they don't reference old AMI
 	for _, b := range newLtd.BlockDeviceMappings {
 		b.Ebs.SnapshotId = nil
