@@ -269,6 +269,7 @@ func (u *Upgrader) UpgradeCluster() error {
 		return err
 	}
 	u.logger.Printf("New launch template version created: %d\n", *newLtv.VersionNumber)
+
 	if err := u.updateAsgLaunchTemplate(asgName, newLtv); err != nil {
 		return err
 	}
@@ -489,6 +490,16 @@ func (u *Upgrader) newLaunchTemplateVersionWithNewImage(lt *ec2types.LaunchTempl
 	}
 
 	newLtd.ImageId = image.ImageId
+
+	// need to nil out snapshot ids of block devices so they don't reference old AMI
+	for _, b := range newLtd.BlockDeviceMappings {
+		b.Ebs.SnapshotId = nil
+	}
+
+	// If newLtv has an SSH key name and it's empty, change to nil as empty is not valid
+	if newLtd.KeyName != nil && *newLtd.KeyName == "" {
+		newLtd.KeyName = nil
+	}
 
 	newLtv := ec2.CreateLaunchTemplateVersionInput{
 		LaunchTemplateId:   lt.LaunchTemplateId,
