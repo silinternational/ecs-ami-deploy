@@ -1020,8 +1020,10 @@ func (u *Upgrader) cleanupOldLaunchTemplates() error {
 	reverseSortLaunchTemplateVersions(versions)
 
 	for i := u.launchTemplateLimit; i < len(versions); i++ {
-		if err := u.deleteLaunchTemplateVersion(*versions[i].LaunchTemplateName, fmt.Sprintf("%d", *versions[i].VersionNumber)); err != nil {
-			return fmt.Errorf("error deleting launch template %s version %d: %s", *versions[i].LaunchTemplateName, *versions[i].VersionNumber, err)
+		versionString := fmt.Sprintf("%d", *versions[i].VersionNumber)
+		if err := u.deleteLaunchTemplateVersion(*versions[i].LaunchTemplateName, versionString); err != nil {
+			return fmt.Errorf("error deleting launch template %s version %d: %s",
+				*versions[i].LaunchTemplateName, *versions[i].VersionNumber, err)
 		}
 	}
 
