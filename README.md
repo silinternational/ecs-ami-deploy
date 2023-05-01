@@ -49,7 +49,7 @@ available or not. When `--force-replacement` is enabled the process is _not_ ide
     1. If cluster is not using latest AMI, or `force replacement` is enabled, proceed to #4
     2. Else if using latest AMI already, jump to #10
  4. Create new launch template version with new AMI
- 5. Update ASG to use new launch config
+ 5. Update launch template default version and set ASG to use the latest template version (`"$Latest"`)
  6. Detach existing instances from ASG and replace with new ones
  7. Wait for new instances to reach `InService` state with ASG
  8. Watch ECS cluster instances until all new ones are registered and available
