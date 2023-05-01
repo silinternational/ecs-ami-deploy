@@ -172,11 +172,6 @@ func (u *Upgrader) ListClusters() ([]ClusterMeta, error) {
 				continue
 			}
 
-			if *c.ClusterName != "appsdev-dev" {
-				fmt.Printf("skipping cluster %s\n\n", *c.ClusterName)
-				continue
-			}
-
 			_, ltd, err := u.getLaunchTemplateForASG(asg)
 			if err != nil {
 				fmt.Printf("Error getting launch template for cluster %s\n%s\n\n", *c.ClusterName, err)
