@@ -488,25 +488,32 @@ func (u *Upgrader) getImageByID(imageID string) (ec2types.Image, error) {
 func (u *Upgrader) newLaunchTemplateVersionWithNewImage(lt *ec2types.LaunchTemplate,
 	ltd *ec2types.ResponseLaunchTemplateData, image ec2types.Image) (*ec2types.LaunchTemplateVersion, error) {
 
+	newLtd, err := makeLaunchTemplateDataRequest(ltd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create a new launch template version, %w", err)
+	}
+
+	newLtd.ImageId = image.ImageId
+
 	newLtv := ec2.CreateLaunchTemplateVersionInput{
-		LaunchTemplateId: lt.LaunchTemplateId,
-		LaunchTemplateData: &ec2types.RequestLaunchTemplateData{
-			IamInstanceProfile: &ec2types.LaunchTemplateIamInstanceProfileSpecificationRequest{
-				Arn:  ltd.IamInstanceProfile.Arn,
-				Name: ltd.IamInstanceProfile.Name,
-			},
-			ImageId:      image.ImageId,
-			InstanceType: ltd.InstanceType,
-			UserData:     ltd.UserData,
-		},
+		LaunchTemplateId:   lt.LaunchTemplateId,
+		LaunchTemplateData: newLtd,
 	}
 
 	out, err := u.ec2Client.CreateLaunchTemplateVersion(context.Background(), &newLtv)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create a new launch template version, error: %s", err)
+		return nil, fmt.Errorf("failed to create a new launch template version, %w", err)
 	}
 
 	return out.LaunchTemplateVersion, nil
+}
+
+func makeLaunchTemplateDataRequest(in *ec2types.ResponseLaunchTemplateData) (*ec2types.RequestLaunchTemplateData, error) {
+	var out ec2types.RequestLaunchTemplateData
+	if err := internal.ConvertToOtherType(in, &out); err != nil {
+		return nil, fmt.Errorf("error making launch template data for request, %w", err)
+	}
+	return &out, nil
 }
 
 func (u *Upgrader) updateAsgLaunchTemplate(asgName string, v *ec2types.LaunchTemplateVersion) error {
@@ -523,7 +530,7 @@ func (u *Upgrader) updateAsgLaunchTemplate(asgName string, v *ec2types.LaunchTem
 	}
 
 	in := &ec2.ModifyLaunchTemplateInput{
-		DefaultVersion:   aws.String(fmt.Sprintf("%d", v.VersionNumber)),
+		DefaultVersion:   aws.String(fmt.Sprintf("%d", *v.VersionNumber)),
 		LaunchTemplateId: v.LaunchTemplateId,
 	}
 	if _, err := u.ec2Client.ModifyLaunchTemplate(context.Background(), in); err != nil {
