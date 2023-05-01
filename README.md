@@ -74,6 +74,6 @@ available or not. When `--force-replacement` is enabled the process is _not_ ide
 3. Run `ecs-ami-deploy list-clusters` to check if it's working and what clusters you have available.
 4. If you have multiple profiles configured in your `~/.aws/credentials` file, you can use the `-p` or `--profile` 
    flags to specify a different profile.
-5. The CLI defaults to region `us-east-1`, you can use the `-r` or `-region` flags to specify else
+5. The CLI defaults to region `us-east-1`, you can use the `-r` or `--region` flags to specify else
 6. The CLI has help information built in for the various subcommands and their supported flags, use `-h` or `--help` 
    flags with each subcommand for more information.
