@@ -172,12 +172,12 @@ func (u *Upgrader) ListClusters() ([]ClusterMeta, error) {
 				continue
 			}
 
-			_, ltd, err := u.getLaunchTemplateForASG(asg)
+			_, ltData, err := u.getLaunchTemplateForASG(asg)
 			if err != nil {
 				fmt.Printf("Error getting launch template for cluster %s\n%s\n\n", *c.ClusterName, err)
 				continue
 			}
-			img, err := u.getImageByID(*ltd.ImageId)
+			img, err := u.getImageByID(*ltData.ImageId)
 			if err != nil {
 				return []ClusterMeta{}, fmt.Errorf("error getting image details for cluster %s: %s", *c.ClusterName, err)
 			}
@@ -210,13 +210,13 @@ func (u *Upgrader) UpgradeCluster() error {
 	}
 	u.logger.Printf("Found ASG: %s\n", asgName)
 
-	lt, ltd, err := u.getLaunchTemplateForASG(asgName)
+	lt, ltData, err := u.getLaunchTemplateForASG(asgName)
 	if err != nil {
 		return err
 	}
 	u.logger.Printf("Launch template: %s\n", *lt.LaunchTemplateName)
 	u.logger.Printf("Latest version: %d\n", *lt.LatestVersionNumber)
-	u.logger.Printf("Current image ID: %s\n", *ltd.ImageId)
+	u.logger.Printf("Current image ID: %s\n", *ltData.ImageId)
 
 	latestImage, err := u.LatestAMI()
 	if err != nil {
@@ -224,7 +224,7 @@ func (u *Upgrader) UpgradeCluster() error {
 	}
 	u.logger.Printf("Latest image found: %s\n", *latestImage.ImageId)
 
-	current, err := u.getImageByID(*ltd.ImageId)
+	current, err := u.getImageByID(*ltData.ImageId)
 	if err != nil {
 		return err
 	}
@@ -264,7 +264,7 @@ func (u *Upgrader) UpgradeCluster() error {
 	}
 	u.logger.Printf("Existing instances in ASG: %s\n", strings.Join(originalInstanceIDs, ", "))
 
-	newLtv, err := u.newLaunchTemplateVersionWithNewImage(lt, ltd, latestImage)
+	newLtv, err := u.newLaunchTemplateVersionWithNewImage(lt, ltData, latestImage)
 	if err != nil {
 		return err
 	}
@@ -403,7 +403,7 @@ func (u *Upgrader) getLaunchTemplateForASG(asgName string) (*ec2types.LaunchTemp
 
 	result, err := u.asgClient.DescribeAutoScalingGroups(context.Background(), input)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to describe auto-scaling groups: %s", err)
+		return nil, nil, fmt.Errorf("failed to describe auto-scaling groups: %w", err)
 	}
 
 	var group asgTypes.AutoScalingGroup
@@ -429,7 +429,7 @@ func (u *Upgrader) getLaunchTemplateForASG(asgName string) (*ec2types.LaunchTemp
 
 	ltResult, err := u.ec2Client.DescribeLaunchTemplates(context.Background(), ltInput)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to describe launch templates: %s", err)
+		return nil, nil, fmt.Errorf("failed to describe launch templates: %w", err)
 	}
 
 	var lt *ec2types.LaunchTemplate
@@ -535,7 +535,7 @@ func (u *Upgrader) updateAsgLaunchTemplate(asgName string, v *ec2types.LaunchTem
 		},
 	}
 	if _, err := u.asgClient.UpdateAutoScalingGroup(context.Background(), updateInput); err != nil {
-		return fmt.Errorf("unable to update ASG %s to use launch template %s version %d, error: %s",
+		return fmt.Errorf("unable to update ASG %s to use launch template %s version %d, error: %w",
 			asgName, *v.LaunchTemplateName, *v.VersionNumber, err)
 	}
 
@@ -544,7 +544,7 @@ func (u *Upgrader) updateAsgLaunchTemplate(asgName string, v *ec2types.LaunchTem
 		LaunchTemplateId: v.LaunchTemplateId,
 	}
 	if _, err := u.ec2Client.ModifyLaunchTemplate(context.Background(), in); err != nil {
-		return err
+		return fmt.Errorf("failed to modify launch template: %w", err)
 	}
 	return nil
 }
@@ -996,7 +996,7 @@ func (u *Upgrader) cleanupOldLaunchTemplates() error {
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(context.Background())
 		if err != nil {
-			return fmt.Errorf("error retriving page of launch templates: %s", err)
+			return fmt.Errorf("error retrieving page of launch templates: %s", err)
 		}
 		for _, lt := range page.LaunchTemplates {
 			if strings.HasPrefix(*lt.LaunchTemplateName, u.launchTemplateNamePrefix) {
@@ -1022,7 +1022,7 @@ func (u *Upgrader) cleanupOldLaunchTemplates() error {
 	for i := u.launchTemplateLimit; i < len(versions); i++ {
 		versionString := fmt.Sprintf("%d", *versions[i].VersionNumber)
 		if err := u.deleteLaunchTemplateVersion(*versions[i].LaunchTemplateName, versionString); err != nil {
-			return fmt.Errorf("error deleting launch template %s version %d: %s",
+			return fmt.Errorf("error deleting launch template %s version %d: %w",
 				*versions[i].LaunchTemplateName, *versions[i].VersionNumber, err)
 		}
 	}

@@ -66,7 +66,7 @@ func init() {
 	_ = upgradeClusterCmd.MarkPersistentFlagRequired("cluster")
 
 	upgradeClusterCmd.PersistentFlags().StringVar(&launchTemplateNamePrefix, "launch-template-name-prefix",
-		"", "launch template name prefix")
+		"", "Launch template name prefix")
 	upgradeClusterCmd.PersistentFlags().BoolVar(&forceReplace, "force-replacement",
 		false, "Force replacement if current AMI is already latest")
 	upgradeClusterCmd.PersistentFlags().StringVar(&AMIFilter, "ami-filter",

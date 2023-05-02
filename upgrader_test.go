@@ -146,8 +146,4 @@ func TestSortLT(t *testing.T) {
 				i, ltvs[i].CreateTime.Unix(), i, ltvs[i+1].CreateTime.Unix())
 		}
 	}
-
-	//for _, i := range ltvs {
-	//	log.Printf("%v - %s", i.CreatedTime.Unix(), i.CreatedTime.Format(time.RFC3339))
-	//}
 }
