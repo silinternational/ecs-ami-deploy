@@ -9,7 +9,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/autoscaling v1.27.2
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.86.1
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.24.0
-	github.com/mitchellh/go-homedir v1.1.0
 	github.com/spf13/cobra v1.6.1
 	github.com/spf13/viper v1.15.0
 )
