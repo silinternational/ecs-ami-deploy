@@ -4,8 +4,6 @@ import (
 	"testing"
 	"time"
 
-	asgTypes "github.com/aws/aws-sdk-go-v2/service/autoscaling/types"
-
 	"github.com/aws/aws-sdk-go-v2/aws"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 )
@@ -115,41 +113,37 @@ func Test_isNewerImage(t *testing.T) {
 //	}
 //}
 
-func TestSortLC(t *testing.T) {
+func TestSortLT(t *testing.T) {
 	now := time.Now()
 	oneDay := 60 * 24 * time.Minute
-	lcs := []asgTypes.LaunchConfiguration{
+	ltvs := []ec2types.LaunchTemplateVersion{
 		{
-			CreatedTime: aws.Time(now.Add(-oneDay)),
+			CreateTime: aws.Time(now.Add(-oneDay)),
 		},
 		{
-			CreatedTime: aws.Time(now.Add(-10 * oneDay)),
+			CreateTime: aws.Time(now.Add(-10 * oneDay)),
 		},
 		{
-			CreatedTime: aws.Time(now.Add(-20 * oneDay)),
+			CreateTime: aws.Time(now.Add(-20 * oneDay)),
 		},
 		{
-			CreatedTime: aws.Time(now.Add(-50 * oneDay)),
+			CreateTime: aws.Time(now.Add(-50 * oneDay)),
 		},
 		{
-			CreatedTime: aws.Time(now.Add(-5 * oneDay)),
+			CreateTime: aws.Time(now.Add(-5 * oneDay)),
 		},
 	}
 
-	reverseSortLaunchConfigurationsByCreatedTime(lcs)
+	reverseSortLaunchTemplateVersions(ltvs)
 
-	for i := range lcs {
+	for i := range ltvs {
 		// make sure not to test value out of range
-		if i+1 >= len(lcs) {
+		if i+1 >= len(ltvs) {
 			continue
 		}
-		if lcs[i].CreatedTime.Before(*lcs[i+1].CreatedTime) {
+		if ltvs[i].CreateTime.Before(*ltvs[i+1].CreateTime) {
 			t.Errorf("time is not sorted as expected. index %v is %v, index %v+1 is %v",
-				i, lcs[i].CreatedTime.Unix(), i, lcs[i+1].CreatedTime.Unix())
+				i, ltvs[i].CreateTime.Unix(), i, ltvs[i+1].CreateTime.Unix())
 		}
 	}
-
-	//for _, i := range lcs {
-	//	log.Printf("%v - %s", i.CreatedTime.Unix(), i.CreatedTime.Format(time.RFC3339))
-	//}
 }

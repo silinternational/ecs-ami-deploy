@@ -11,12 +11,12 @@ import (
 )
 
 var (
-	cluster                string
-	forceReplace           bool
-	launchConfigNamePrefix string
-	launchConfigLimit      int
-	pollingInterval        int
-	pollingTimeout         int
+	cluster                  string
+	forceReplace             bool
+	launchTemplateNamePrefix string
+	launchTemplateLimit      int
+	pollingInterval          int
+	pollingTimeout           int
 )
 
 // latestAMICmd represents the ec2 latest-ami command
@@ -28,13 +28,13 @@ var upgradeClusterCmd = &cobra.Command{
 		initAwsCfg()
 
 		upgrader, err := ead.NewUpgrader(AwsCfg, &ead.Config{
-			Cluster:                cluster,
-			AMIFilter:              AMIFilter,
-			ForceReplacement:       forceReplace,
-			LaunchConfigNamePrefix: launchConfigNamePrefix,
-			LaunchConfigLimit:      launchConfigLimit,
-			PollingInterval:        time.Duration(pollingInterval) * time.Second,
-			PollingTimeout:         time.Duration(pollingTimeout) * time.Minute,
+			Cluster:                  cluster,
+			AMIFilter:                AMIFilter,
+			ForceReplacement:         forceReplace,
+			LaunchTemplateNamePrefix: launchTemplateNamePrefix,
+			LaunchTemplateLimit:      launchTemplateLimit,
+			PollingInterval:          time.Duration(pollingInterval) * time.Second,
+			PollingTimeout:           time.Duration(pollingTimeout) * time.Minute,
 		})
 		if err != nil {
 			fmt.Println(err)
@@ -65,10 +65,16 @@ func init() {
 	upgradeClusterCmd.PersistentFlags().StringVar(&cluster, "cluster", "", "Cluster name")
 	_ = upgradeClusterCmd.MarkPersistentFlagRequired("cluster")
 
-	upgradeClusterCmd.PersistentFlags().StringVar(&launchConfigNamePrefix, "launch-config-name-prefix", "", "Launch Configuration name prefix")
-	upgradeClusterCmd.PersistentFlags().BoolVar(&forceReplace, "force-replacement", false, "Force replacement if current AMI is already latest")
-	upgradeClusterCmd.PersistentFlags().StringVar(&AMIFilter, "ami-filter", ead.DefaultAMIFilter, "AMI search filter")
-	upgradeClusterCmd.PersistentFlags().IntVar(&launchConfigLimit, "launch-config-limit", ead.DefaultLaunchConfigLimit, "Number of previous launch configurations to keep.")
-	upgradeClusterCmd.PersistentFlags().IntVar(&pollingInterval, "polling-interval-seconds", int(ead.DefaultPollingInterval.Seconds()), "Number of seconds between status checks.")
-	upgradeClusterCmd.PersistentFlags().IntVar(&pollingTimeout, "polling-timeout-minutes", int(ead.DefaultPollingTimeout.Minutes()), "Number of minutes before a polling operation times out.")
+	upgradeClusterCmd.PersistentFlags().StringVar(&launchTemplateNamePrefix, "launch-template-name-prefix",
+		"", "Launch template name prefix")
+	upgradeClusterCmd.PersistentFlags().BoolVar(&forceReplace, "force-replacement",
+		false, "Force replacement if current AMI is already latest")
+	upgradeClusterCmd.PersistentFlags().StringVar(&AMIFilter, "ami-filter",
+		ead.DefaultAMIFilter, "AMI search filter")
+	upgradeClusterCmd.PersistentFlags().IntVar(&launchTemplateLimit, "launch-template-limit",
+		ead.DefaultLaunchTemplateLimit, "Number of previous launch template versions to keep.")
+	upgradeClusterCmd.PersistentFlags().IntVar(&pollingInterval, "polling-interval-seconds",
+		int(ead.DefaultPollingInterval.Seconds()), "Number of seconds between status checks.")
+	upgradeClusterCmd.PersistentFlags().IntVar(&pollingTimeout, "polling-timeout-minutes",
+		int(ead.DefaultPollingTimeout.Minutes()), "Number of minutes before a polling operation times out.")
 }
