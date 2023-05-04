@@ -22,15 +22,15 @@ import (
 )
 
 type Upgrader struct {
-	amiFilter              string
-	cluster                string
-	forceReplacement       bool
-	launchConfigLimit      int
-	launchConfigNamePrefix string
-	logger                 *log.Logger
-	pollingInterval        time.Duration
-	pollingTimeout         time.Duration
-	timestampLayout        string
+	amiFilter                string
+	cluster                  string
+	forceReplacement         bool
+	launchTemplateLimit      int
+	launchTemplateNamePrefix string
+	logger                   *log.Logger
+	pollingInterval          time.Duration
+	pollingTimeout           time.Duration
+	timestampLayout          string
 
 	awsCfg    aws.Config
 	asgClient *autoscaling.Client
@@ -70,11 +70,11 @@ func (u *Upgrader) loadConfig(config *Config) error {
 		config.Logger = log.Default()
 		config.Logger.SetOutput(os.Stdout)
 	}
-	if config.LaunchConfigNamePrefix == "" {
-		config.LaunchConfigNamePrefix = "ecs-" + config.Cluster
+	if config.LaunchTemplateNamePrefix == "" {
+		config.LaunchTemplateNamePrefix = "ecs-" + config.Cluster
 	}
-	if config.LaunchConfigLimit == 0 {
-		config.LaunchConfigLimit = DefaultConfig.LaunchConfigLimit
+	if config.LaunchTemplateLimit == 0 {
+		config.LaunchTemplateLimit = DefaultConfig.LaunchTemplateLimit
 	}
 	if config.PollingInterval == 0 {
 		config.PollingInterval = DefaultConfig.PollingInterval
@@ -89,8 +89,8 @@ func (u *Upgrader) loadConfig(config *Config) error {
 	u.amiFilter = config.AMIFilter
 	u.cluster = config.Cluster
 	u.forceReplacement = config.ForceReplacement
-	u.launchConfigLimit = config.LaunchConfigLimit
-	u.launchConfigNamePrefix = config.LaunchConfigNamePrefix
+	u.launchTemplateLimit = config.LaunchTemplateLimit
+	u.launchTemplateNamePrefix = config.LaunchTemplateNamePrefix
 	u.logger = config.Logger
 	u.pollingInterval = config.PollingInterval
 	u.pollingTimeout = config.PollingTimeout
@@ -172,11 +172,12 @@ func (u *Upgrader) ListClusters() ([]ClusterMeta, error) {
 				continue
 			}
 
-			lc, err := u.getLaunchConfigurationForASG(asg)
+			_, ltData, err := u.getLaunchTemplateForASG(asg)
 			if err != nil {
-				return []ClusterMeta{}, fmt.Errorf("error getting launch configuration for cluster %s: %s", *c.ClusterName, err)
+				fmt.Printf("Error getting launch template for cluster %s\n%s\n\n", *c.ClusterName, err)
+				continue
 			}
-			img, err := u.getImageByID(*lc.ImageId)
+			img, err := u.getImageByID(*ltData.ImageId)
 			if err != nil {
 				return []ClusterMeta{}, fmt.Errorf("error getting image details for cluster %s: %s", *c.ClusterName, err)
 			}
@@ -209,25 +210,26 @@ func (u *Upgrader) UpgradeCluster() error {
 	}
 	u.logger.Printf("Found ASG: %s\n", asgName)
 
-	lc, err := u.getLaunchConfigurationForASG(asgName)
+	lt, ltData, err := u.getLaunchTemplateForASG(asgName)
 	if err != nil {
 		return err
 	}
-	u.logger.Printf("Current launch configuration: %s\n", *lc.LaunchConfigurationName)
-	u.logger.Printf("Current image ID: %s\n", *lc.ImageId)
+	u.logger.Printf("Launch template: %s\n", *lt.LaunchTemplateName)
+	u.logger.Printf("Latest version: %d\n", *lt.LatestVersionNumber)
+	u.logger.Printf("Current image ID: %s\n", *ltData.ImageId)
 
-	latest, err := u.LatestAMI()
+	latestImage, err := u.LatestAMI()
 	if err != nil {
 		return err
 	}
-	u.logger.Printf("Latest image found: %s\n", *latest.ImageId)
+	u.logger.Printf("Latest image found: %s\n", *latestImage.ImageId)
 
-	current, err := u.getImageByID(*lc.ImageId)
+	current, err := u.getImageByID(*ltData.ImageId)
 	if err != nil {
 		return err
 	}
 
-	isNewer, err := isNewerImage(current, latest)
+	isNewer, err := isNewerImage(current, latestImage)
 	if err != nil {
 		return err
 	}
@@ -262,16 +264,16 @@ func (u *Upgrader) UpgradeCluster() error {
 	}
 	u.logger.Printf("Existing instances in ASG: %s\n", strings.Join(originalInstanceIDs, ", "))
 
-	newLc, err := u.cloneLaunchConfigurationWithNewImage(lc, latest)
+	newLtv, err := u.newLaunchTemplateVersionWithNewImage(lt, ltData, latestImage)
 	if err != nil {
 		return err
 	}
-	u.logger.Printf("New launch configuration created: %s\n", newLc)
+	u.logger.Printf("New launch template version created: %d\n", *newLtv.VersionNumber)
 
-	if err := u.updateAsgLaunchConfiguration(asgName, newLc); err != nil {
+	if err := u.updateAsgLaunchTemplate(asgName, newLtv); err != nil {
 		return err
 	}
-	u.logger.Println("ASG updated to use new launch configuration")
+	u.logger.Println("ASG updated to use new launch template version")
 
 	// detach and replace instances
 	if err := u.detachAndReplaceAsgInstances(asgName); err != nil {
@@ -311,7 +313,7 @@ func (u *Upgrader) UpgradeCluster() error {
 		return err
 	}
 
-	if err := u.cleanupOldLaunchConfigurations(); err != nil {
+	if err := u.cleanupOldLaunchTemplates(); err != nil {
 		return err
 	}
 
@@ -392,7 +394,7 @@ func (u *Upgrader) getInstanceListForCluster(cluster string) ([]ecsTypes.Contain
 	return descResult.ContainerInstances, nil
 }
 
-func (u *Upgrader) getLaunchConfigurationForASG(asgName string) (*asgTypes.LaunchConfiguration, error) {
+func (u *Upgrader) getLaunchTemplateForASG(asgName string) (*ec2types.LaunchTemplate, *ec2types.ResponseLaunchTemplateData, error) {
 	input := &autoscaling.DescribeAutoScalingGroupsInput{
 		AutoScalingGroupNames: []string{
 			asgName,
@@ -401,7 +403,7 @@ func (u *Upgrader) getLaunchConfigurationForASG(asgName string) (*asgTypes.Launc
 
 	result, err := u.asgClient.DescribeAutoScalingGroups(context.Background(), input)
 	if err != nil {
-		return nil, fmt.Errorf("failed to describe auto-scaling groups: %s", err)
+		return nil, nil, fmt.Errorf("failed to describe auto-scaling groups: %w", err)
 	}
 
 	var group asgTypes.AutoScalingGroup
@@ -415,38 +417,47 @@ func (u *Upgrader) getLaunchConfigurationForASG(asgName string) (*asgTypes.Launc
 	}
 
 	// if no matching group was found, return err
-	if group.LaunchConfigurationName == nil {
-		return nil, fmt.Errorf("ASG with name %s not found", asgName)
+	if group.LaunchTemplate == nil {
+		return nil, nil, fmt.Errorf("ASG %s has no launch template", asgName)
 	}
 
-	lcInput := &autoscaling.DescribeLaunchConfigurationsInput{
-		LaunchConfigurationNames: []string{
-			*group.LaunchConfigurationName,
+	ltInput := &ec2.DescribeLaunchTemplatesInput{
+		LaunchTemplateNames: []string{
+			*group.LaunchTemplate.LaunchTemplateName,
 		},
 	}
 
-	lcResult, err := u.asgClient.DescribeLaunchConfigurations(context.Background(), lcInput)
+	ltResult, err := u.ec2Client.DescribeLaunchTemplates(context.Background(), ltInput)
 	if err != nil {
-		return nil, fmt.Errorf("failed to describe launch configurations: %s", err)
+		return nil, nil, fmt.Errorf("failed to describe launch templates: %w", err)
 	}
 
-	var lc *asgTypes.LaunchConfiguration
+	var lt *ec2types.LaunchTemplate
 
-	// we should only get one LC back, but just to be safe, loop through results and look for specific match
-	for _, l := range lcResult.LaunchConfigurations {
-		if *l.LaunchConfigurationName == *group.LaunchConfigurationName {
-			lc = &l
+	// we should only get one LT back, but just to be safe, loop through results and look for specific match
+	for _, l := range ltResult.LaunchTemplates {
+		if *l.LaunchTemplateName == *group.LaunchTemplate.LaunchTemplateName {
+			lt = &l
 			break
 		}
 	}
 
-	// if no matching LC was found, return err
-	if lc == nil {
-		return nil, fmt.Errorf("unable to find a launch configuration by name %s for ASG %s",
-			*group.LaunchConfigurationName, asgName)
+	// if no matching LT was found, return err
+	if lt == nil {
+		return nil, nil, fmt.Errorf("unable to find a launch template by name %s for ASG %s",
+			*group.LaunchTemplate.LaunchTemplateName, asgName)
 	}
 
-	return lc, nil
+	ltdInput := ec2.DescribeLaunchTemplateVersionsInput{
+		LaunchTemplateId: lt.LaunchTemplateId,
+		Versions:         []string{"$Latest"},
+	}
+	ltv, err := u.ec2Client.DescribeLaunchTemplateVersions(context.Background(), &ltdInput)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return lt, ltv.LaunchTemplateVersions[0].LaunchTemplateData, nil
 }
 
 func (u *Upgrader) getImageByID(imageID string) (ec2types.Image, error) {
@@ -470,49 +481,71 @@ func (u *Upgrader) getImageByID(imageID string) (ec2types.Image, error) {
 	return ec2types.Image{}, fmt.Errorf("unable to find image by ID %s", imageID)
 }
 
-func (u *Upgrader) cloneLaunchConfigurationWithNewImage(lc *asgTypes.LaunchConfiguration, image ec2types.Image) (string, error) {
-	// autoscaling/types.LaunchConfiguration has the same fields as autoscaling.CreateLaunchConfigurationInput
-	// using json marshal/unmarshal as easy way to convert from one to the other
-	var newLc autoscaling.CreateLaunchConfigurationInput
-	if err := internal.ConvertToOtherType(lc, &newLc); err != nil {
-		return "", fmt.Errorf("failed to clone launch configuration, error: %s", err)
+func (u *Upgrader) newLaunchTemplateVersionWithNewImage(lt *ec2types.LaunchTemplate,
+	ltd *ec2types.ResponseLaunchTemplateData, image ec2types.Image) (*ec2types.LaunchTemplateVersion, error) {
+
+	newLtd, err := makeLaunchTemplateDataRequest(ltd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create a new launch template version, %w", err)
 	}
 
-	newLc.LaunchConfigurationName = aws.String(fmt.Sprintf("%s-%s", u.launchConfigNamePrefix, internal.CurrentTimestamp(u.timestampLayout)))
-	newLc.ImageId = image.ImageId
+	newLtd.ImageId = image.ImageId
 
 	// KernelId and RamdiskId must be updated anytime a the ImageId is updated
-	newLc.KernelId = image.KernelId
-	newLc.RamdiskId = image.RamdiskId
+	newLtd.KernelId = image.KernelId
+	newLtd.RamDiskId = image.RamdiskId
 
 	// need to nil out snapshot ids of block devices so they don't reference old AMI
-	for _, b := range newLc.BlockDeviceMappings {
+	for _, b := range newLtd.BlockDeviceMappings {
 		b.Ebs.SnapshotId = nil
 	}
 
-	// If newLc has an SSH key name and it's empty, change to nil as empty is not valid
-	if newLc.KeyName != nil && *newLc.KeyName == "" {
-		newLc.KeyName = nil
+	// If newLtv has an SSH key name and it's empty, change to nil as empty is not valid
+	if newLtd.KeyName != nil && *newLtd.KeyName == "" {
+		newLtd.KeyName = nil
 	}
 
-	_, err := u.asgClient.CreateLaunchConfiguration(context.Background(), &newLc)
+	newLtv := ec2.CreateLaunchTemplateVersionInput{
+		LaunchTemplateId:   lt.LaunchTemplateId,
+		LaunchTemplateData: newLtd,
+	}
+
+	out, err := u.ec2Client.CreateLaunchTemplateVersion(context.Background(), &newLtv)
 	if err != nil {
-		return "", fmt.Errorf("failed to clone launch configuration, error: %s", err)
+		return nil, fmt.Errorf("failed to create a new launch template version, %w", err)
 	}
 
-	return *newLc.LaunchConfigurationName, nil
+	return out.LaunchTemplateVersion, nil
 }
 
-func (u *Upgrader) updateAsgLaunchConfiguration(asgName, launchConfigName string) error {
+func makeLaunchTemplateDataRequest(in *ec2types.ResponseLaunchTemplateData) (*ec2types.RequestLaunchTemplateData, error) {
+	var out ec2types.RequestLaunchTemplateData
+	if err := internal.ConvertToOtherType(in, &out); err != nil {
+		return nil, fmt.Errorf("error making launch template data for request, %w", err)
+	}
+	return &out, nil
+}
+
+func (u *Upgrader) updateAsgLaunchTemplate(asgName string, v *ec2types.LaunchTemplateVersion) error {
 	updateInput := &autoscaling.UpdateAutoScalingGroupInput{
-		AutoScalingGroupName:    aws.String(asgName),
-		LaunchConfigurationName: aws.String(launchConfigName),
+		AutoScalingGroupName: aws.String(asgName),
+		LaunchTemplate: &asgTypes.LaunchTemplateSpecification{
+			LaunchTemplateId: v.LaunchTemplateId,
+			Version:          aws.String("$Latest"),
+		},
 	}
-
 	if _, err := u.asgClient.UpdateAutoScalingGroup(context.Background(), updateInput); err != nil {
-		return fmt.Errorf("unable to update ASG %s to use launch configuration %s, error: %s", asgName, launchConfigName, err)
+		return fmt.Errorf("unable to update ASG %s to use launch template %s version %d, error: %w",
+			asgName, *v.LaunchTemplateName, *v.VersionNumber, err)
 	}
 
+	in := &ec2.ModifyLaunchTemplateInput{
+		DefaultVersion:   aws.String(fmt.Sprintf("%d", *v.VersionNumber)),
+		LaunchTemplateId: v.LaunchTemplateId,
+	}
+	if _, err := u.ec2Client.ModifyLaunchTemplate(context.Background(), in); err != nil {
+		return fmt.Errorf("failed to modify launch template: %w", err)
+	}
 	return nil
 }
 
@@ -652,6 +685,7 @@ func (u *Upgrader) waitForContainerInstanceCount(cluster string, desired int) er
 		Clusters: []string{cluster},
 	}
 
+	u.logger.Printf("Waiting for cluster %s instances...", cluster)
 	startTime := time.Now()
 	for {
 		if time.Since(startTime) >= u.pollingTimeout {
@@ -670,6 +704,7 @@ func (u *Upgrader) waitForContainerInstanceCount(cluster string, desired int) er
 				continue
 			}
 			if c.RegisteredContainerInstancesCount == int32(desired) {
+				u.logger.Printf("Cluster %s now has %v registered instances.", cluster, c.RegisteredContainerInstancesCount)
 				return nil
 			}
 			u.logger.Printf("Still waiting for cluster %s to have %v registered instances, currently has %v", cluster, desired, c.RegisteredContainerInstancesCount)
@@ -951,51 +986,59 @@ func (u *Upgrader) findDetachedButRunningInstances(asgName string) ([]string, er
 	return orphanInstances, nil
 }
 
-func (u *Upgrader) cleanupOldLaunchConfigurations() error {
-	input := &autoscaling.DescribeLaunchConfigurationsInput{
-		MaxRecords: aws.Int32(100),
+func (u *Upgrader) cleanupOldLaunchTemplates() error {
+	input := &ec2.DescribeLaunchTemplatesInput{
+		MaxResults: aws.Int32(100),
 	}
 
-	var relevantConfigs []asgTypes.LaunchConfiguration
-	paginator := autoscaling.NewDescribeLaunchConfigurationsPaginator(u.asgClient, input)
+	var relevantTemplates []ec2types.LaunchTemplate
+	paginator := ec2.NewDescribeLaunchTemplatesPaginator(u.ec2Client, input)
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(context.Background())
 		if err != nil {
-			return fmt.Errorf("error retriving page of launch configs: %s", err)
+			return fmt.Errorf("error retrieving page of launch templates: %s", err)
 		}
-		for _, c := range page.LaunchConfigurations {
-			if strings.HasPrefix(*c.LaunchConfigurationName, u.launchConfigNamePrefix) {
-				relevantConfigs = append(relevantConfigs, c)
+		for _, lt := range page.LaunchTemplates {
+			if strings.HasPrefix(*lt.LaunchTemplateName, u.launchTemplateNamePrefix) {
+				relevantTemplates = append(relevantTemplates, lt)
 			}
 		}
 	}
 
-	if len(relevantConfigs) == 0 || len(relevantConfigs) <= u.launchConfigLimit {
+	if len(relevantTemplates) == 0 || len(relevantTemplates) <= u.launchTemplateLimit {
 		return nil
 	}
-	u.logger.Printf("Found %v launch configurations with prefix %s. Configured to only keep %v, will delete oldest revisions",
-		len(relevantConfigs), u.launchConfigNamePrefix, u.launchConfigLimit)
+	u.logger.Printf("Found %v launch templates with prefix %s. Configured to only keep %v, will delete oldest revisions",
+		len(relevantTemplates), u.launchTemplateNamePrefix, u.launchTemplateLimit)
 
-	// sort launch configs newest to oldest
-	reverseSortLaunchConfigurationsByCreatedTime(relevantConfigs)
+	versions, err := u.getTemplateVersions(relevantTemplates)
+	if err != nil {
+		return err
+	}
 
-	for i := u.launchConfigLimit; i < len(relevantConfigs); i++ {
-		if err := u.deleteLaunchConfiguration(*relevantConfigs[i].LaunchConfigurationName); err != nil {
-			return fmt.Errorf("error deleting launch configuration %s: %s", *relevantConfigs[i].LaunchConfigurationARN, err)
+	// sort launch template versions newest to oldest
+	reverseSortLaunchTemplateVersions(versions)
+
+	for i := u.launchTemplateLimit; i < len(versions); i++ {
+		versionString := fmt.Sprintf("%d", *versions[i].VersionNumber)
+		if err := u.deleteLaunchTemplateVersion(*versions[i].LaunchTemplateName, versionString); err != nil {
+			return fmt.Errorf("error deleting launch template %s version %d: %w",
+				*versions[i].LaunchTemplateName, *versions[i].VersionNumber, err)
 		}
 	}
 
 	return nil
 }
 
-func (u *Upgrader) deleteLaunchConfiguration(name string) error {
-	input := &autoscaling.DeleteLaunchConfigurationInput{
-		LaunchConfigurationName: aws.String(name),
+func (u *Upgrader) deleteLaunchTemplateVersion(templateName, version string) error {
+	input := &ec2.DeleteLaunchTemplateVersionsInput{
+		LaunchTemplateName: aws.String(templateName),
+		Versions:           []string{version},
 	}
 
-	u.logger.Printf("Deleting launch configuration %s", name)
+	u.logger.Printf("Deleting launch template %s version %s", templateName, version)
 
-	_, err := u.asgClient.DeleteLaunchConfiguration(context.Background(), input)
+	_, err := u.ec2Client.DeleteLaunchTemplateVersions(context.Background(), input)
 	return err
 }
 
@@ -1017,8 +1060,22 @@ func isNewerImage(first, second ec2types.Image) (bool, error) {
 	return secondTime.After(firstTime), nil
 }
 
-func reverseSortLaunchConfigurationsByCreatedTime(lcs []asgTypes.LaunchConfiguration) {
-	sort.SliceStable(lcs, func(i, j int) bool {
-		return lcs[i].CreatedTime.UnixNano() > lcs[j].CreatedTime.UnixNano()
+func reverseSortLaunchTemplateVersions(ltv []ec2types.LaunchTemplateVersion) {
+	sort.SliceStable(ltv, func(i, j int) bool {
+		return ltv[i].CreateTime.UnixNano() > ltv[j].CreateTime.UnixNano()
 	})
+}
+
+func (u *Upgrader) getTemplateVersions(templates []ec2types.LaunchTemplate) (versions []ec2types.LaunchTemplateVersion, err error) {
+	for _, t := range templates {
+		in := ec2.DescribeLaunchTemplateVersionsInput{
+			LaunchTemplateId: t.LaunchTemplateId,
+		}
+		v, err := u.ec2Client.DescribeLaunchTemplateVersions(context.Background(), &in)
+		if err != nil {
+			return nil, err
+		}
+		versions = append(versions, v.LaunchTemplateVersions...)
+	}
+	return
 }

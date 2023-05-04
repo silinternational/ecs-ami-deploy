@@ -11,7 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	homedir "github.com/mitchellh/go-homedir"
+	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/viper"
 )
 
@@ -55,7 +55,7 @@ func init() {
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.ecs-ami-deploy.yaml)")
 	rootCmd.PersistentFlags().StringVarP(&Profile, "profile", "p", "", "AWS shared credentials profile to use")
-	rootCmd.PersistentFlags().StringVarP(&Region, "region", "r", "us-east-1", "AWS shared credentials profile to use")
+	rootCmd.PersistentFlags().StringVarP(&Region, "region", "r", "us-east-1", "AWS region")
 
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
