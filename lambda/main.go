@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/aws/aws-lambda-go/lambda"
-	ead "github.com/silinternational/ecs-ami-deploy"
+	ead "github.com/silinternational/ecs-ami-deploy/v2"
 )
 
 func main() {

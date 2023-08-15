@@ -7,7 +7,7 @@ Based on a couple assumptions, this library can replace all instances in an ECS 
 any of the running services.
 
 This process is available as:
- - A Go Module: `import "github.com/silinternational/ecs-ami-deploy"`
+ - A Go Module: `import "github.com/silinternational/ecs-ami-deploy/v2"`
  - A command line application. See `cli/` directory
  - A Lambda function that can be scheduled or triggered automatically whenever a new ECS optimized AMI is released
 

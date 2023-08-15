@@ -1,4 +1,4 @@
-module github.com/silinternational/ecs-ami-deploy
+module github.com/silinternational/ecs-ami-deploy/v2
 
 go 1.19
 
