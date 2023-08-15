@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/silinternational/ecs-ami-deploy/internal"
+	"github.com/silinternational/ecs-ami-deploy/v2/internal"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/autoscaling"

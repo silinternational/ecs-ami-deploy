@@ -5,7 +5,7 @@ import (
 	"os"
 	"text/tabwriter"
 
-	ead "github.com/silinternational/ecs-ami-deploy"
+	ead "github.com/silinternational/ecs-ami-deploy/v2"
 	"github.com/spf13/cobra"
 )
 
