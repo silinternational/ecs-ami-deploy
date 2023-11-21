@@ -9,7 +9,6 @@ any of the running services.
 This process is available as:
  - A Go Module: `import "github.com/silinternational/ecs-ami-deploy/v2"`
  - A command line application. See `cli/` directory
- - A Lambda function that can be scheduled or triggered automatically whenever a new ECS optimized AMI is released
 
 ## Why did we build this?
 AWS releases new ECS optimized AMIs on a pretty frequent basis. It's generally a good idea to keep up to 
@@ -31,11 +30,10 @@ one by one, EC2 instances are removed from service and terminated, and only when
 they have zero pending tasks, then the next EC2 instance can be removed from service and so forth. 
 
 ## Idempotency
-Gracefully replacing instances can take some time, especially for clusters with many instances supporting them. Since 
-it is expected that this process will be run by a Lambda, which has a runtime limit of 15 minutes, the process was 
-designed to be fault-tolerant and to pick up where it left off should it be killed due to timeout. One of the ways 
-this is accomplished is that all EC2 instances in the ASG are tagged before being detached and terminated. On successive runs
-the process looks for tagged instances for the given cluster that are no longer in service and continues the graceful 
+Gracefully replacing instances can take some time, especially for clusters with many instances supporting them. The
+process was designed to be fault-tolerant and to pick up where it left off should it terminate. One of the ways this is
+accomplished is that all EC2 instances in the ASG are tagged before being detached and terminated. On successive runs 
+the process looks for tagged instances for the given cluster that are no longer in service and continues the graceful
 termination process while monitoring the ECS cluster services for stability.
 
 If `--force-replacement` is enabled, the process will always replace all instances whether there is a newer AMI 

@@ -32,8 +32,7 @@ var (
 var rootCmd = &cobra.Command{
 	Use:   "ecs-ami-deploy",
 	Short: "Rotate AMI used in ASG for latest ECS Optimized image",
-	Long: `A CLI, library, and Lambda function for rotating instances in an auto-scaling group with
-an updated ECS optimized image`,
+	Long:  `A utility for rotating instances in an auto-scaling group with an updated ECS optimized image`,
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
