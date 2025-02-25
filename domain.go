@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	DefaultAMIFilter           = "amzn2-ami-ecs-hvm-*-x86_64-ebs"
+	DefaultAMIFilter           = "al2023-ami-ecs-hvm-*-x86_64"
 	DefaultPollingTimeout      = 15 * time.Minute
 	DefaultPollingInterval     = 5 * time.Second
 	DefaultLaunchTemplateLimit = 5
