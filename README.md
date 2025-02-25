@@ -41,7 +41,7 @@ available or not. When `--force-replacement` is enabled the process is _not_ ide
 
 ## Instance Replacement Process
 
- 1. Look up latest AMI based on either the given AMI filter, or the default: `amzn2-ami-ecs-hvm-*-x86_64-ebs`
+ 1. Look up latest AMI based on either the given AMI filter, or the default: `al2023-ami-ecs-hvm-*-x86_64`
  2. Identify the ASG for the given ECS cluster to get current launch template and instances list
  3. Compare latest AMI with AMI in use by launch template
     1. If cluster is not using latest AMI, or `force replacement` is enabled, proceed to #4
