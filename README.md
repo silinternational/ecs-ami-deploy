@@ -7,7 +7,7 @@ Based on a couple assumptions, this library can replace all instances in an ECS 
 any of the running services.
 
 This process is available as:
- - A Go Module: `import "github.com/silinternational/ecs-ami-deploy/v2"`
+ - A Go Module: `import "github.com/silinternational/ecs-ami-deploy/v3"`
  - A command line application. See `cli/` directory
 
 ## Why did we build this?

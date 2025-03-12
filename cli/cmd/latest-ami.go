@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	ead "github.com/silinternational/ecs-ami-deploy/v2"
+	ead "github.com/silinternational/ecs-ami-deploy/v3"
 )
 
 var AMIFilter string
