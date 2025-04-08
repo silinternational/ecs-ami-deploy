@@ -218,6 +218,11 @@ func (u *Upgrader) UpgradeCluster() error {
 	u.logger.Printf("Latest version: %d\n", *lt.LatestVersionNumber)
 	u.logger.Printf("Current image ID: %s\n", *ltData.ImageId)
 
+	_, err = u.getImageByID(*ltData.ImageId, u.amiFilter)
+	if err != nil {
+		return fmt.Errorf("launch template image name doesn't match the AMI Filter")
+	}
+
 	latestImage, err := u.LatestAMI()
 	if err != nil {
 		return err
@@ -460,18 +465,24 @@ func (u *Upgrader) getLaunchTemplateForASG(asgName string) (*ec2types.LaunchTemp
 	return lt, ltv.LaunchTemplateVersions[0].LaunchTemplateData, nil
 }
 
-func (u *Upgrader) getImageByID(imageID string) (ec2types.Image, error) {
+func (u *Upgrader) getImageByID(imageID string, filters ...string) (ec2types.Image, error) {
 	imgInput := &ec2.DescribeImagesInput{
 		ImageIds: []string{
 			imageID,
 		},
+	}
+	if len(filters) > 0 {
+		imgInput.Filters = []ec2types.Filter{{
+			Name:   aws.String("name"),
+			Values: filters,
+		}}
 	}
 	imgResult, err := u.ec2Client.DescribeImages(context.Background(), imgInput)
 	if err != nil {
 		return ec2types.Image{}, fmt.Errorf("failed to describe image by id: %s", err)
 	}
 
-	// should only get one image back, but to be safe loop through results to find match
+	// should get at most one image back, but to be safe loop through results to find match
 	for _, i := range imgResult.Images {
 		if *i.ImageId == imageID {
 			return i, nil
