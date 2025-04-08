@@ -244,7 +244,7 @@ func (u *Upgrader) UpgradeCluster() error {
 		return err
 	}
 
-	if !oldImageFound && !isNewer && !u.forceReplacement {
+	if !(oldImageFound || isNewer || u.forceReplacement) {
 		u.logger.Println("Upgrade not needed, cluster is already running the latest AMI")
 		return u.terminateOrphanedInstances(asgName)
 	}
