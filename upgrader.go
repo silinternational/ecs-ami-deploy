@@ -239,14 +239,17 @@ func (u *Upgrader) UpgradeCluster() error {
 		return err
 	}
 
-	if !isNewer && !u.forceReplacement {
-		u.logger.Println("Upgrade not needed, cluster is already running latest AMI")
+	oldImageFound, err := u.checkRunningInstances(*latestImage.ImageId)
+	if err != nil {
+		return err
+	}
+
+	if !(oldImageFound || isNewer || u.forceReplacement) {
+		u.logger.Println("Upgrade not needed, cluster is already running the latest AMI")
 		return u.terminateOrphanedInstances(asgName)
 	}
 
-	if u.forceReplacement {
-		u.logger.Println("Cluster already running latest AMI, but replacing instances anyway")
-	} else {
+	if isNewer {
 		u.logger.Println("Latest image determined to be newer than image currently in use, proceeding with upgrade")
 	}
 
@@ -1089,4 +1092,32 @@ func (u *Upgrader) getTemplateVersions(templates []ec2types.LaunchTemplate) (ver
 		versions = append(versions, v.LaunchTemplateVersions...)
 	}
 	return
+}
+
+// checkRunningInstances looks at the instances in the cluster and returns true if any of the instance images
+// are older than the latest
+func (u *Upgrader) checkRunningInstances(latestImageId string) (bool, error) {
+	instanceList, err := u.getInstanceListForCluster(u.cluster)
+	if err != nil {
+		return false, fmt.Errorf("error retrieving instance list for cluster %s: %w", u.cluster, err)
+	}
+
+	for _, instance := range instanceList {
+		instanceDetails, err := u.ec2Client.DescribeInstances(context.Background(), &ec2.DescribeInstancesInput{
+			InstanceIds: []string{*instance.Ec2InstanceId},
+		})
+		if err != nil {
+			return false, fmt.Errorf("error retrieving instance details for instance %s: %w", *instance.Ec2InstanceId, err)
+		}
+
+		for _, res := range instanceDetails.Reservations {
+			for _, inst := range res.Instances {
+				if *inst.ImageId != latestImageId {
+					u.logger.Printf("Found an older image (%s) running in the cluster.", *inst.ImageId)
+					return true, nil
+				}
+			}
+		}
+	}
+	return false, nil
 }
