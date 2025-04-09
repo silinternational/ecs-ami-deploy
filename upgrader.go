@@ -1113,7 +1113,7 @@ func (u *Upgrader) checkRunningInstances(latestImageId string) (bool, error) {
 		for _, res := range instanceDetails.Reservations {
 			for _, inst := range res.Instances {
 				if *inst.ImageId != latestImageId {
-					u.logger.Printf("Found an older image (%s) running in the cluster.", *instance.Ec2InstanceId)
+					u.logger.Printf("Found an older image (%s) running in the cluster.", *inst.ImageId)
 					return true, nil
 				}
 			}
